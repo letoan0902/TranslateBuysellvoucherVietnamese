@@ -358,12 +358,46 @@ ${text}`;
 
     // Tạo button dịch cho tin nhắn (hover) - chỉ setup listeners, không tự động tìm tin nhắn
     async function setupMessageHoverTranslate() {
-        // Chỉ setup event listeners cho các phần tử message có sẵn
-        // Không tự động tìm tin nhắn, chỉ đợi user hover
-        // Sử dụng selector chính xác hơn để tránh duplicate
-        const messageContainers = document.querySelectorAll('main [class*="flex flex-col"]');
+        // Sử dụng logic từ findMessages() để đảm bảo chỉ chọn message containers chính xác
+        // Tránh duplicate bằng cách chỉ chọn message container chính (có message content bên trong)
+        const allElements = document.querySelectorAll('main [class*="flex flex-col"]');
+        const messageContainers = new Set(); // Dùng Set để tránh duplicate
 
-        messageContainers.forEach(messageElement => {
+        allElements.forEach(element => {
+            // Kiểm tra xem element này có phải là message container không
+            const classList = element.className || '';
+            const hasFlexCol = classList.includes('flex') && classList.includes('flex-col');
+            const hasItems = classList.includes('items-end') || classList.includes('items-start');
+            const hasMessageContent = element.querySelector('[class*="rounded-lg"][class*="p-3"]');
+
+            // Chỉ chọn message container chính (có đủ điều kiện)
+            if (hasFlexCol && hasItems && hasMessageContent) {
+                // Kiểm tra xem có phải là nested element không (nằm trong một message container khác)
+                let isNested = false;
+                for (const existing of messageContainers) {
+                    if (existing.contains(element) && existing !== element) {
+                        isNested = true;
+                        break;
+                    }
+                }
+
+                // Nếu không phải nested và chưa có trong Set, thêm vào
+                if (!isNested) {
+                    // Xóa các element nhỏ hơn nếu element này chứa chúng
+                    const toRemove = [];
+                    for (const existing of messageContainers) {
+                        if (element.contains(existing) && element !== existing) {
+                            toRemove.push(existing);
+                        }
+                    }
+                    toRemove.forEach(el => messageContainers.delete(el));
+                    messageContainers.add(element);
+                }
+            }
+        });
+
+        // Convert Set thành Array để forEach
+        Array.from(messageContainers).forEach(messageElement => {
             // Kiểm tra đã setup chưa
             if (messageElement.dataset.translateHoverSetup === 'true') return;
 
@@ -509,6 +543,50 @@ ${text}`;
         let originalInputText = '';
         let translatedInputText = '';
 
+        // Hàm reset button về trạng thái "Dịch"
+        function resetInputTranslateButton() {
+            if (!translateButton) return;
+
+            // Xóa button cũ
+            translateButton.remove();
+            translateButton = null;
+            delete input.dataset.translatedText;
+            delete input.dataset.originalText;
+            originalInputText = '';
+            translatedInputText = '';
+
+            // Tạo lại button "Dịch" nếu input có nội dung
+            if (input.value.trim().length > 0) {
+                createInputTranslateButton();
+                const inputContainer = input.parentElement;
+                if (inputContainer) {
+                    if (window.getComputedStyle(inputContainer).position === 'static') {
+                        inputContainer.style.position = 'relative';
+                    }
+                    inputContainer.appendChild(translateButton);
+                }
+            }
+        }
+
+        // Hàm kiểm tra và reset button nếu cần
+        function checkAndResetButton() {
+            if (!translateButton) return;
+
+            // Nếu input trống và button đang là "←" (quay về), reset về "Dịch"
+            if (input.value.length === 0 && translateButton.dataset.isTranslated === 'true') {
+                resetInputTranslateButton();
+            }
+            // Nếu input có nội dung nhưng khác với text đã dịch, reset về "Dịch"
+            else if (input.value.length > 0 && translateButton.dataset.isTranslated === 'true') {
+                const translatedText = input.dataset.translatedText || '';
+                const originalText = input.dataset.originalText || '';
+
+                if (input.value !== translatedText && input.value !== originalText) {
+                    resetInputTranslateButton();
+                }
+            }
+        }
+
         // Tạo button dịch
         function createInputTranslateButton() {
             if (translateButton) return;
@@ -644,10 +722,8 @@ ${text}`;
                                 input.dispatchEvent(changeEvent);
                             }
 
-                            translateButton.remove();
-                            delete input.dataset.translatedText;
-                            delete input.dataset.originalText;
-                            translateButton = null;
+                            // Reset button về trạng thái "Dịch"
+                            resetInputTranslateButton();
                         });
                     } else {
                         translateButton.innerHTML = CONFIG.TRANSLATE_BUTTON_TEXT;
@@ -674,17 +750,114 @@ ${text}`;
         input.addEventListener('focus', () => {
             if (!translateButton && input.value.trim().length > 0) {
                 createInputTranslateButton();
+                const inputContainer = input.parentElement;
+                if (inputContainer) {
+                    if (window.getComputedStyle(inputContainer).position === 'static') {
+                        inputContainer.style.position = 'relative';
+                    }
+                    inputContainer.appendChild(translateButton);
+                }
             }
         });
 
+        // Theo dõi input value thay đổi bằng nhiều cách
+        let lastInputValue = input.value;
+
+        // MutationObserver để theo dõi thay đổi value của input (React có thể không trigger input event)
+        const inputObserver = new MutationObserver(() => {
+            if (input.value !== lastInputValue) {
+                lastInputValue = input.value;
+                checkAndResetButton();
+            }
+        });
+
+        // Theo dõi attribute changes (value có thể thay đổi qua attribute)
+        inputObserver.observe(input, {
+            attributes: true,
+            attributeFilter: ['value'],
+            childList: false,
+            subtree: false
+        });
+
+        // Event listeners
         input.addEventListener('input', () => {
-            if (!translateButton && input.value.trim().length > 0) {
-                createInputTranslateButton();
-            } else if (translateButton && input.value.trim().length === 0 && translateButton.dataset.isTranslated !== 'true') {
+            lastInputValue = input.value;
+            checkAndResetButton();
+
+            // Nếu input trống và button đang là "Dịch", xóa button
+            if (input.value.length === 0 && translateButton && translateButton.dataset.isTranslated !== 'true') {
                 translateButton.remove();
                 translateButton = null;
             }
+            // Nếu input có nội dung và chưa có button, tạo button
+            else if (input.value.length > 0 && !translateButton) {
+                createInputTranslateButton();
+                const inputContainer = input.parentElement;
+                if (inputContainer) {
+                    if (window.getComputedStyle(inputContainer).position === 'static') {
+                        inputContainer.style.position = 'relative';
+                    }
+                    inputContainer.appendChild(translateButton);
+                }
+            }
         });
+
+        input.addEventListener('change', () => {
+            lastInputValue = input.value;
+            checkAndResetButton();
+        });
+
+        input.addEventListener('blur', () => {
+            lastInputValue = input.value;
+            checkAndResetButton();
+        });
+
+        // Theo dõi khi form submit để reset button (người dùng đã gửi tin nhắn)
+        const form = input.closest('form');
+        if (form) {
+            form.addEventListener('submit', () => {
+                // Sau khi submit, kiểm tra và reset button nhiều lần (React có thể clear input chậm)
+                const checkInterval = setInterval(() => {
+                    lastInputValue = input.value;
+                    checkAndResetButton();
+
+                    // Nếu input đã trống và button đã được reset, dừng kiểm tra
+                    if (input.value.length === 0 && (!translateButton || translateButton.dataset.isTranslated !== 'true')) {
+                        clearInterval(checkInterval);
+                    }
+                }, 50); // Check mỗi 50ms
+
+                // Dừng sau 2 giây (đủ thời gian để React clear input)
+                setTimeout(() => {
+                    clearInterval(checkInterval);
+                    lastInputValue = input.value;
+                    checkAndResetButton();
+                }, 2000);
+            });
+        }
+
+        // Kiểm tra định kỳ để đảm bảo button luôn đúng trạng thái
+        const periodicCheck = setInterval(() => {
+            if (input && translateButton) {
+                checkAndResetButton();
+            }
+        }, 500); // Check mỗi 500ms
+
+        // Cleanup khi input bị remove
+        const cleanupObserver = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                mutation.removedNodes.forEach((node) => {
+                    if (node === input || (node.contains && node.contains(input))) {
+                        clearInterval(periodicCheck);
+                        inputObserver.disconnect();
+                        cleanupObserver.disconnect();
+                    }
+                });
+            });
+        });
+        if (input.parentElement) {
+            cleanupObserver.observe(input.parentElement, { childList: true, subtree: true });
+        }
 
         if (input.value.trim().length > 0) {
             createInputTranslateButton();
@@ -740,7 +913,11 @@ ${text}`;
     async function processPage() {
         // Kiểm tra extension context trước khi tiếp tục
         if (!isExtensionContextValid()) {
-            console.warn('Extension context invalidated, skipping processPage');
+            // Chỉ log 1 lần để tránh spam console
+            if (!processPage.lastWarningTime || Date.now() - processPage.lastWarningTime > 5000) {
+                console.warn('Extension context invalidated, skipping processPage. Please reload the page.');
+                processPage.lastWarningTime = Date.now();
+            }
             return;
         }
 
