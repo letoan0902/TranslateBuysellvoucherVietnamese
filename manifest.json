@@ -1,40 +1,57 @@
 {
-    "manifest_version": 3,
-    "name": "Auto Translate BuySellVouchers",
-    "version": "2.0.0",
-    "description": "Tự động dịch tin nhắn trên buysellvouchers.com",
-    "permissions": [
-        "storage"
-    ],
-    "host_permissions": [
+  "manifest_version": 3,
+  "name": "Auto Translate Multi-Platform",
+  "version": "3.0.0",
+  "description": "Tự động dịch tin nhắn trên BuySellVouchers, Digiseller/Plati, Telegram Web",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://www.buysellvouchers.com/*",
+    "https://buysellvouchers.com/*",
+    "https://my.digiseller.com/*",
+    "https://chat.digiseller.com/*",
+    "https://chat.plati.market/*",
+    "https://www.plati.market/*",
+    "https://plati.market/*",
+    "https://web.telegram.org/*",
+    "https://generativelanguage.googleapis.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
         "https://www.buysellvouchers.com/*",
         "https://buysellvouchers.com/*",
-        "https://api.groq.com/*"
-    ],
-    "content_scripts": [
-        {
-            "matches": [
-                "https://www.buysellvouchers.com/*",
-                "https://buysellvouchers.com/*"
-            ],
-            "js": [
-                "content.js"
-            ],
-            "run_at": "document_idle"
-        }
-    ],
-    "action": {
-        "default_popup": "popup.html",
-        "default_title": "Auto Translate BuySellVouchers",
-        "default_icon": {
-            "16": "icons.png",
-            "48": "icons.png",
-            "128": "icons.png"
-        }
-    },
-    "icons": {
-        "16": "icons.png",
-        "48": "icons.png",
-        "128": "icons.png"
+        "https://my.digiseller.com/*",
+        "https://chat.digiseller.com/*",
+        "https://chat.plati.market/*",
+        "https://www.plati.market/*",
+        "https://plati.market/*",
+        "https://web.telegram.org/*"
+      ],
+      "js": [
+        "core/language.js",
+        "core/ui.js",
+        "core/api.js",
+        "adapters/buysellvouchers.js",
+        "adapters/digiseller.js",
+        "adapters/telegram.js",
+        "content.js"
+      ],
+      "all_frames": true,
+      "run_at": "document_idle"
     }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Auto Translate Multi-Platform",
+    "default_icon": {
+      "16": "icons.png",
+      "48": "icons.png",
+      "128": "icons.png"
+    }
+  },
+  "icons": {
+    "16": "icons.png",
+    "48": "icons.png",
+    "128": "icons.png"
+  }
 }

@@ -5,9 +5,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const status = document.getElementById('status');
 
     // Load API key hiện tại
-    chrome.storage.local.get(['groq_api_key'], (result) => {
-        if (result.groq_api_key) {
-            apiKeyInput.value = result.groq_api_key;
+    chrome.storage.local.get(['gemini_api_key'], (result) => {
+        if (result.gemini_api_key) {
+            apiKeyInput.value = result.gemini_api_key;
         }
     });
 
@@ -19,8 +19,8 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        chrome.storage.local.set({ groq_api_key: apiKey }, () => {
-            showStatus('Đã lưu API key thành công!', 'success');
+        chrome.storage.local.set({ gemini_api_key: apiKey }, () => {
+            showStatus('Đã lưu Gemini API key thành công!', 'success');
             setTimeout(() => {
                 window.close();
             }, 1000);
@@ -48,4 +48,3 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 3000);
     }
 });
-
