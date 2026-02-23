@@ -85,12 +85,12 @@ window.AdapterTelegram = (function () {
     }
 
     function isOwnMessage(messageElement) {
-        const className = messageElement.className || '';
-        // Telegram Web A marks own messages with various classes
-        return className.includes('own') ||
-            className.includes('outgoing') ||
-            className.includes('is-own') ||
-            messageElement.closest('.is-own, .own, [class*="own"]') !== null;
+        // IMPORTANT: Must use classList.contains() NOT className.includes()
+        // because 'shown' contains substring 'own' which causes false positives
+        return messageElement.classList.contains('own') ||
+            messageElement.classList.contains('outgoing') ||
+            messageElement.classList.contains('is-own') ||
+            messageElement.closest('.is-own, .own, .outgoing') !== null;
     }
 
     // ========== CONVERSATION CONTEXT ==========

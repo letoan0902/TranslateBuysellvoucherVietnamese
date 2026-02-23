@@ -60,40 +60,62 @@ window.TranslateLanguage = (function () {
     /**
      * Detect the dominant language of the OTHER party from conversation context.
      * Looks at messages from Customer/Buyer/Contact lines in the context.
+     * Falls back to scanning the entire context for dominant non-Vietnamese language.
      * @param {string} context - conversation context string
      * @returns {string|null} - detected language or null
      */
     function detectContextLanguage(context) {
         if (!context) return null;
 
-        // Extract messages from the other party (Customer, Buyer, Contact)
-        const lines = context.split('\n');
+        // Split on real newlines AND literal \n (different adapters may format differently)
+        const lines = context.split(/\n|\\n/);
         const otherPartyTexts = [];
 
         for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+
             // Match lines like "Customer: ...", "Buyer (Customer): ...", "Contact: ..."
-            const match = line.match(/^(?:Customer|Buyer|Contact)(?:\s*\([^)]*\))?:\s*(.+)$/i);
+            const match = trimmed.match(/^(?:Customer|Buyer|Contact)(?:\s*\([^)]*\))?\s*:\s*(.+)$/i);
             if (match && match[1]) {
                 otherPartyTexts.push(match[1].trim());
             }
         }
 
-        if (otherPartyTexts.length === 0) return null;
+        // If we found Other Party messages, analyze their language
+        if (otherPartyTexts.length > 0) {
+            let russianCount = 0;
+            let englishCount = 0;
 
-        // Check the most recent customer messages for language
-        let russianCount = 0;
-        let englishCount = 0;
-
-        for (const text of otherPartyTexts.slice(-5)) {
-            if (RUSSIAN_REGEX.test(text)) {
-                russianCount++;
-            } else if (!VIETNAMESE_REGEX.test(text)) {
-                englishCount++;
+            for (const text of otherPartyTexts.slice(-5)) {
+                if (RUSSIAN_REGEX.test(text)) {
+                    russianCount++;
+                } else if (!VIETNAMESE_REGEX.test(text)) {
+                    englishCount++;
+                }
             }
+
+            if (russianCount > englishCount) return 'Russian';
+            if (englishCount > 0) return 'English';
         }
 
-        if (russianCount > englishCount) return 'Russian';
-        if (englishCount > 0) return 'English';
+        // Fallback: scan the entire context for Russian or English
+        // Exclude lines that start with "You" or "You (Seller)" to focus on the other party
+        const allNonOwnTexts = [];
+        for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+            // Skip own messages and header lines
+            if (/^(?:You|Seller|Conversation context)/i.test(trimmed)) continue;
+            allNonOwnTexts.push(trimmed);
+        }
+
+        if (allNonOwnTexts.length > 0) {
+            const combined = allNonOwnTexts.join(' ');
+            if (RUSSIAN_REGEX.test(combined)) return 'Russian';
+            if (!VIETNAMESE_REGEX.test(combined)) return 'English';
+        }
+
         return null;
     }
 
